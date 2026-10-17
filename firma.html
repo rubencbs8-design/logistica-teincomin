@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Firma EPP · TEINCOMIN</title>
+<meta name="theme-color" content="#0B1F5C">
+<link rel="icon" href="./icon-192.png">
+<link rel="manifest" href="./firma.webmanifest">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --navy:#0B1F5C; --muted:#667085; --line:#D5DBE6; --ok:#2E7D32; --danger:#C62828; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; height:100%; background:#F4F6FA; font-family:Inter,system-ui,sans-serif; color:#1B2333; overscroll-behavior:none; }
+  .top{ background:var(--navy); color:#fff; padding:12px 16px; padding-top:max(12px, env(safe-area-inset-top)); display:flex; align-items:center; gap:10px; }
+  .top img{ height:26px; background:#fff; border-radius:5px; padding:2px 5px; }
+  .top b{ flex:1; font-size:16px; }
+  .dot{ width:10px; height:10px; border-radius:50%; background:#8EA0D0; }
+  .dot.on{ background:#4ADE80; } .dot.off{ background:#F87171; }
+  .wrap{ padding:16px; max-width:760px; margin:0 auto; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .espera{ text-align:center; padding:60px 20px; color:var(--muted); }
+  .espera .big{ font-size:54px; margin-bottom:10px; }
+  .nombre{ font-size:20px; font-weight:700; color:var(--navy); }
+  .items{ margin:10px 0 0; padding:0; list-style:none; font-size:16px; }
+  .items li{ padding:8px 0; border-bottom:1px solid #EEF1F5; display:flex; justify-content:space-between; gap:10px; }
+  .items li b{ white-space:nowrap; }
+  .decl{ font-size:14px; color:var(--muted); margin:10px 0 0; }
+  .canvas-wrap{ position:relative; background:#fff; border:2px dashed #9AA6BF; border-radius:14px; touch-action:none; }
+  canvas{ display:block; width:100%; height:42vh; min-height:220px; touch-action:none; }
+  .linea{ position:absolute; left:24px; right:24px; bottom:22%; border-bottom:1.5px solid #B9C2D3; pointer-events:none; }
+  .ph{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#A3ACBE; font-size:18px; pointer-events:none; }
+  .btns{ display:flex; gap:10px; margin-top:12px; }
+  button{ font:inherit; height:54px; border-radius:12px; border:1px solid #C9D0DE; background:#fff; font-size:17px; padding:0 18px; }
+  button.primary{ flex:1; background:var(--navy); color:#fff; border-color:var(--navy); font-weight:700; }
+  button:disabled{ opacity:.6; }
+  .err{ color:var(--danger); text-align:center; margin-top:10px; min-height:20px; }
+  .ok{ text-align:center; padding:50px 20px; }
+  .ok .big{ font-size:64px; }
+  .hidden{ display:none !important; }
+</style>
+</head>
+<body>
+  <div class="top"><img src="./teincomin.png" alt=""><b>Firma de EPP</b><span class="dot" id="dot"></span></div>
+  <div class="wrap">
+    <div id="sinVinculo" class="card espera hidden">
+      <div class="big">🔗</div>
+      <div>Este celular no está vinculado.<br>En la PC del almacén abre <b>Celular de firma</b> y escanea el código QR.</div>
+    </div>
+
+    <div id="espera" class="espera hidden">
+      <div class="big">✍️</div>
+      <div><b>Listo para firmar</b></div>
+      <div>Cuando el almacén registre una entrega de EPP, aparecerá aquí.</div>
+      <div style="margin-top:14px;font-size:13px" id="estado"></div>
+    </div>
+
+    <div id="firmar" class="hidden">
+      <div class="card">
+        <div class="nombre" id="fNombre"></div>
+        <div style="color:var(--muted)" id="fDni"></div>
+        <ul class="items" id="fItems"></ul>
+        <p class="decl" id="fDecl"></p>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv"></canvas><div class="linea"></div><div class="ph" id="ph">Firme aquí con el dedo</div></div>
+      <div class="err" id="err"></div>
+      <div class="btns">
+        <button id="btnLimpiar">Borrar</button>
+        <button class="primary" id="btnEnviar">Firmar y enviar</button>
+      </div>
+    </div>
+
+    <div id="listo" class="ok hidden"><div class="big">✅</div><h2>Firma enviada</h2><div style="color:var(--muted)">Gracias. Puede devolver el celular.</div></div>
+  </div>
+<script src="./api.js"></script>
+<script>
+// Vínculo: la PC muestra un QR con #t=<token>&u=<url del Apps Script>. Se guarda aquí y se limpia de la barra.
+(function(){
+  const h = new URLSearchParams(location.hash.slice(1));
+  if(h.get('t')){ lsSet('firma_token', h.get('t')); if(h.get('u')) lsSet('firma_url', h.get('u')); history.replaceState(null, '', location.pathname); }
+})();
+const token = lsGet('firma_token', ''), url = lsGet('firma_url', '');
+const $ = id => document.getElementById(id);
+function mostrar(id){ ['sinVinculo','espera','firmar','listo'].forEach(x=> $(x).classList.toggle('hidden', x!==id)); }
+
+async function post(body){
+  const res = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) });
+  return res.json();
+}
+
+let actual = null, timer = null, wake = null;
+async function pedirWake(){ try{ if('wakeLock' in navigator) wake = await navigator.wakeLock.request('screen'); }catch(e){} }
+
+async function revisar(){
+  clearTimeout(timer);
+  if(document.hidden){ timer = setTimeout(revisar, 4000); return; }
+  try{
+    const j = await post({ action:'firma_pendiente', token });
+    $('dot').className = 'dot on';
+    if(!j.ok){ $('estado').textContent = j.error; if(/vinculado/.test(j.error||'')){ mostrar('sinVinculo'); return; } }
+    else if(j.solicitud && (!actual || actual.id !== j.solicitud.id)){ abrir(j.solicitud); }
+    else if(!j.solicitud && actual){ actual = null; mostrar('espera'); }
+    else if(!actual){ $('estado').textContent = 'Conectado · ' + new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit', second:'2-digit'}); }
+  }catch(e){ $('dot').className = 'dot off'; $('estado').textContent = 'Sin conexión, reintentando…'; }
+  timer = setTimeout(revisar, actual ? 5000 : 2500);
+}
+
+function abrir(s){
+  actual = s;
+  $('fNombre').textContent = s.trabajador;
+  $('fDni').textContent = [s.dni ? 'DNI ' + s.dni : '', s.cargo].filter(Boolean).join(' · ');
+  $('fItems').innerHTML = s.items.map(it=> `<li><span>${esc(it.d)}</span><b>${fmtNum(it.cant)} ${esc(it.um)}</b></li>`).join('');
+  $('fDecl').textContent = s.texto || '';
+  $('err').textContent = '';
+  mostrar('firmar');
+  requestAnimationFrame(()=>{ ajustar(); limpiar(); });
+  if(navigator.vibrate) navigator.vibrate(200);
+}
+
+// ---- lienzo de firma ----
+const cv = $('cv'), cx = cv.getContext('2d');
+let dib = false, hay = false, last = null;
+function ajustar(){ const r = cv.getBoundingClientRect(), d = window.devicePixelRatio||1; cv.width = r.width*d; cv.height = r.height*d; cx.setTransform(d,0,0,d,0,0); cx.lineCap='round'; cx.lineJoin='round'; cx.strokeStyle='#0B1F5C'; }
+function limpiar(){ cx.clearRect(0,0,cv.width,cv.height); hay=false; $('ph').style.display=''; }
+const pt = e=>{ const r = cv.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top, p:e.pressure||0.5 }; };
+cv.addEventListener('pointerdown', e=>{ e.preventDefault(); dib=true; last=pt(e); cv.setPointerCapture(e.pointerId); $('ph').style.display='none'; });
+cv.addEventListener('pointermove', e=>{ if(!dib) return; e.preventDefault(); const p = pt(e); cx.lineWidth = 2 + p.p*2.5; cx.beginPath(); cx.moveTo(last.x,last.y); cx.lineTo(p.x,p.y); cx.stroke(); last=p; hay=true; });
+['pointerup','pointercancel'].forEach(t=> cv.addEventListener(t, ()=> dib=false));
+window.addEventListener('resize', ()=>{ if(actual && !hay) ajustar(); });
+$('btnLimpiar').addEventListener('click', limpiar);
+
+function recortar(){
+  const d = cx.getImageData(0,0,cv.width,cv.height).data; let x0=cv.width, y0=cv.height, x1=0, y1=0;
+  for(let y=0;y<cv.height;y+=2) for(let x=0;x<cv.width;x+=2){ if(d[(y*cv.width+x)*4+3]>0){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
+  const pad=12; x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad); x1=Math.min(cv.width,x1+pad); y1=Math.min(cv.height,y1+pad);
+  const o = document.createElement('canvas'), k = Math.min(1, 600/(x1-x0));
+  o.width = Math.round((x1-x0)*k); o.height = Math.round((y1-y0)*k);
+  o.getContext('2d').drawImage(cv, x0, y0, x1-x0, y1-y0, 0, 0, o.width, o.height);
+  return o.toDataURL('image/png');
+}
+
+$('btnEnviar').addEventListener('click', async ()=>{
+  if(!hay){ $('err').textContent = 'Falta la firma'; return; }
+  const b = $('btnEnviar'); b.disabled = true; b.textContent = 'Enviando…';
+  try{
+    const j = await post({ action:'firma_enviar', token, id: actual.id, png: recortar() });
+    if(!j.ok){ $('err').textContent = j.error; return; }
+    actual = null; mostrar('listo');
+    setTimeout(()=>{ mostrar('espera'); revisar(); }, 3500);
+  }catch(e){ $('err').textContent = 'Sin conexión. Intenta de nuevo.'; }
+  finally{ b.disabled = false; b.textContent = 'Firmar y enviar'; }
+});
+
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ pedirWake(); revisar(); } });
+if(!token || !url) mostrar('sinVinculo');
+else { mostrar('espera'); pedirWake(); revisar(); }
+if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body>
+</html>

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logística · TEINCOMIN</title>
+<meta name="theme-color" content="#0B1F5C">
+<link rel="icon" href="./icon-192.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<!-- ============ INGRESO ============ -->
+<div id="login" class="login-wrap">
+  <div class="login-box">
+    <img src="./teincomin.png" alt="TEINCOMIN" class="login-logo">
+    <h1>Logística</h1>
+    <p class="muted">Almacén, EPP y kardex</p>
+    <label>Usuario</label>
+    <input id="lgUser" autocomplete="username" placeholder="LOGISTICO">
+    <label>PIN</label>
+    <input id="lgPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="••••">
+    <label class="check"><input type="checkbox" id="lgRecordar" checked> Recordar en esta PC</label>
+    <div class="err" id="lgErr"></div>
+    <button class="primary" id="lgBtn">Entrar</button>
+    <button class="link" id="lgCfg">Configurar conexión</button>
+    <div id="lgCfgBox" class="hidden">
+      <label>URL del Apps Script (/exec)</label>
+      <input id="lgUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <aside class="side">
+    <div class="side-brand"><img src="./teincomin.png" alt="TEINCOMIN"><span>Logística</span></div>
+    <nav id="nav">
+      <div class="nav-group" data-roles="ADMIN SEGURIDAD SOLICITANTE LOGISTICO LECTURA">Pedidos</div>
+      <button data-v="mov" data-t="PEDIDO" data-roles="ADMIN SEGURIDAD SOLICITANTE">＋ Nuevo pedido</button>
+      <button data-v="pedidos" data-roles="ADMIN SEGURIDAD SOLICITANTE LOGISTICO LECTURA">🧾 Pedidos <span class="nav-badge hidden" id="pedBadge"></span></button>
+      <div class="nav-group" data-roles="ADMIN LOGISTICO">Registrar</div>
+      <button data-v="mov" data-t="SALIDA" data-roles="ADMIN LOGISTICO">↗ Salida / entrega</button>
+      <button data-v="mov" data-t="INGRESO" data-roles="ADMIN LOGISTICO">↘ Ingreso</button>
+      <button data-v="mov" data-t="DEVOLUCION" data-roles="ADMIN LOGISTICO">↩ Devolución</button>
+      <button data-v="mov" data-t="STOCK INICIAL" data-roles="ADMIN LOGISTICO">⊞ Stock inicial / ajuste</button>
+      <div class="nav-group">Consultar</div>
+      <button data-v="stock">▦ Stock</button>
+      <button data-v="movs">≡ Movimientos</button>
+      <button data-v="epp" data-roles="ADMIN LOGISTICO SEGURIDAD LECTURA">⛑ EPP por trabajador</button>
+      <div class="nav-group" data-roles="ADMIN LOGISTICO SEGURIDAD">Catálogos</div>
+      <button data-v="personal" data-roles="ADMIN LOGISTICO SEGURIDAD">👷 Personal</button>
+      <button data-v="productos" data-roles="ADMIN LOGISTICO">📦 Productos</button>
+      <button data-v="labores" data-roles="ADMIN LOGISTICO">⛏ Labores</button>
+      <div class="nav-group">Equipo</div>
+      <button data-v="celular" data-roles="ADMIN LOGISTICO">📱 Celular de firma</button>
+      <button data-v="ajustes">⚙ Ajustes</button>
+    </nav>
+    <div class="side-foot">
+      <div id="whoami"></div>
+      <button class="link" id="btnSalir">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <main>
+    <header class="top">
+      <button class="ghost small menu-btn" id="btnMenu" aria-label="Menú">☰</button>
+      <h2 id="viewTitle">Salida / entrega</h2>
+      <div class="top-right">
+        <span id="colaBadge" class="badge warn hidden" title="Vales guardados en esta PC que aún no llegan a la hoja"></span>
+        <span id="celBadge" class="badge" title="Celular de firma"></span>
+        <span class="muted small" id="lastSync">—</span>
+        <button class="ghost small" id="btnRefresh">↻ Actualizar</button>
+      </div>
+    </header>
+
+    <!-- ============ REGISTRAR MOVIMIENTO ============ -->
+    <section class="view active" id="view-mov">
+      <div class="tipo-tabs hidden" id="tipoAjuste">
+        <button data-t="STOCK INICIAL" class="active">Stock inicial (conteo)</button>
+        <button data-t="AJUSTE">Ajuste de inventario (+ / −)</button>
+      </div>
+      <div class="grid-mov">
+        <div class="card">
+          <h3 id="movCabTitulo">Datos de la entrega</h3>
+          <div class="form-grid">
+            <div class="field"><label>Fecha *</label><input type="date" id="mFecha"></div>
+            <div class="field fx-trab"><label id="mTrabLbl">Trabajador</label>
+              <div class="ac"><input id="mTrab" placeholder="DNI o apellidos" autocomplete="off"><div class="ac-list" id="mTrabList"></div></div>
+              <div class="hint" id="mTrabInfo"></div></div>
+            <div class="field fx-labor"><label id="mLaborLbl">Labor</label><select id="mLabor"></select></div>
+            <div class="field fx-guardia"><label>Guardia</label><select id="mGuardia"><option value="">—</option><option>DIA</option><option>NOCHE</option></select></div>
+            <div class="field fx-prov"><label>Proveedor</label><input id="mProv" placeholder="Opcional"></div>
+            <div class="field fx-doc"><label>Guía / factura / OC</label><input id="mDoc" placeholder="Opcional"></div>
+            <div class="field span2"><label>Observación</label><input id="mObs" placeholder="Opcional"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Agregar productos</h3>
+          <div class="chips" id="mCats"></div>
+          <div class="ac">
+            <input id="mBuscar" placeholder="Busca por cualquier palabra: casco, broca 32, botas 42…" autocomplete="off">
+          </div>
+          <div class="result-list" id="mRes"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row-between">
+          <h3>Productos del vale <span class="muted" id="mCount"></span></h3>
+          <div class="row-gap" style="margin:0">
+            <span id="mExcelBox" class="row-gap hidden" style="margin:0">
+              <button class="ghost small" id="mPlantilla" title="Excel con todos los productos: llena la columna CANTIDAD (y COSTO_UNIT si lo tienes)">⬇ Plantilla Excel</button>
+              <button class="ghost small" id="mCargar" title="Sube la plantilla llena: los productos pasan a este vale">⬆ Cargar Excel</button>
+              <input type="file" id="mArchivo" accept=".xlsx,.xls,.csv" class="hidden">
+            </span>
+            <button class="ghost small" id="mLimpiar">Vaciar vale</button>
+          </div>
+        </div>
+        <div class="tbl-scroll"><table class="tbl" id="mTabla">
+          <thead><tr><th>Código</th><th>Descripción</th><th>UM</th><th class="num">Stock</th><th class="num col-cant">Cantidad</th>
+            <th class="num col-costo">Costo unit. (S/)</th><th class="num col-costo">Subtotal</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <div class="empty-row" id="mVacio">Busca un producto arriba y haz clic (o Enter) para agregarlo.</div>
+        <div class="avisos" id="mAvisos"></div>
+
+        <div class="firma-box hidden" id="mFirmaBox">
+          <div>
+            <b>Firma del trabajador</b> <span class="muted">(obligatoria en la entrega de EPP)</span>
+            <div class="hint" id="mFirmaEstado">Sin firma</div>
+          </div>
+          <img id="mFirmaImg" class="firma-mini hidden" alt="Firma">
+          <div class="firma-btns">
+            <button class="primary-outline" id="mFirmaCel">📱 Firmar en el celular</button>
+            <button class="ghost" id="mFirmaPC">🖊 Firmar en esta PC</button>
+            <button class="ghost hidden" id="mFirmaQuitar">Quitar firma</button>
+          </div>
+        </div>
+
+        <div class="err" id="mErr"></div>
+        <div class="row-end">
+          <div class="total" id="mTotal"></div>
+          <button class="primary big" id="mRegistrar">Registrar salida</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PEDIDOS ============ -->
+    <section class="view" id="view-pedidos">
+      <div class="card">
+        <div class="filters">
+          <div class="chips" id="pdEstados" style="margin:0"></div>
+          <span class="grow"></span>
+          <input id="pdBuscar" placeholder="Pedido, trabajador, solicitante, producto…">
+          <button class="primary small" id="pdNuevo">＋ Nuevo pedido</button>
+        </div>
+        <div id="pdLista" class="ped-lista"></div>
+        <div class="muted small" id="pdPie"></div>
+      </div>
+    </section>
+
+    <!-- ============ STOCK ============ -->
+    <section class="view" id="view-stock">
+      <div class="kpis">
+        <div class="kpi"><div class="kv" id="kItems">0</div><div class="kl">Productos con stock</div></div>
+        <div class="kpi"><div class="kv" id="kValor">S/ 0</div><div class="kl">Valor del inventario</div></div>
+        <div class="kpi"><div class="kv danger" id="kReponer">0</div><div class="kl">Por reponer (≤ mínimo)</div></div>
+        <div class="kpi"><div class="kv" id="kSinCosto">0</div><div class="kl">Con stock y sin costo</div></div>
+      </div>
+      <div class="card">
+        <div class="filters">
+          <input id="sBuscar" placeholder="Buscar producto…">
+          <select id="sCat"></select>
+          <label class="check"><input type="checkbox" id="sConStock" checked> Solo con stock</label>
+          <label class="check"><input type="checkbox" id="sReponer"> Solo por reponer</label>
+          <span class="grow"></span>
+          <button class="ghost small" id="sExcel">⬇ Excel</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="sTabla">
+          <thead><tr><th>Código</th><th>Descripción</th><th>Categoría</th><th>Subcategoría</th><th>UM</th><th class="num">Stock</th>
+            <th class="num">Mínimo</th><th class="num">Costo prom.</th><th class="num">Valor</th><th>Últ. mov.</th></tr></thead>
+          <tbody></tbody></table></div>
+        <div class="muted small" id="sPie"></div>
+      </div>
+    </section>
+
+    <!-- ============ MOVIMIENTOS ============ -->
+    <section class="view" id="view-movs">
+      <div class="card">
+        <div class="filters">
+          <label class="small">Desde <input type="date" id="vDesde"></label>
+          <label class="small">Hasta <input type="date" id="vHasta"></label>
+          <select id="vTipo"><option value="">Todo tipo</option><option>SALIDA</option><option>INGRESO</option><option>DEVOLUCION</option>
+            <option>STOCK INICIAL</option><option>AJUSTE</option><option>ANULACION</option><option>HISTORICO</option></select>
+          <input id="vBuscar" placeholder="Producto, trabajador, labor, vale…">
+          <button class="ghost small" id="vCargar">Buscar</button>
+          <span class="grow"></span>
+          <button class="ghost small" id="vExcel">⬇ Excel</button>
+        </div>
+        <div class="kpis small-kpis">
+          <div class="kpi"><div class="kv" id="vkVales">0</div><div class="kl">Vales</div></div>
+          <div class="kpi"><div class="kv" id="vkSal">S/ 0</div><div class="kl">Costo de salidas</div></div>
+          <div class="kpi"><div class="kv" id="vkIng">S/ 0</div><div class="kl">Valor de ingresos</div></div>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="vTabla">
+          <thead><tr><th>Fecha</th><th>Vale</th><th>Tipo</th><th>Producto</th><th class="num">Cant.</th><th>UM</th><th class="num">Costo</th>
+            <th>Trabajador</th><th>Labor</th><th>Doc. / proveedor</th><th>Usuario</th><th></th></tr></thead>
+          <tbody></tbody></table></div>
+        <div class="muted small" id="vPie"></div>
+      </div>
+    </section>
+
+    <!-- ============ EPP POR TRABAJADOR ============ -->
+    <section class="view" id="view-epp">
+      <div class="grid-epp">
+        <div class="card">
+          <h3>Trabajador</h3>
+          <div class="ac"><input id="eTrab" placeholder="DNI o apellidos" autocomplete="off"><div class="ac-list" id="eTrabList"></div></div>
+          <div id="eFicha" class="ficha"></div>
+          <div class="row-gap" id="eBtns" style="display:none">
+            <button class="primary" id="eKardex">📄 Kardex FO-SI-057</button>
+            <button class="ghost" id="eEntregar">↗ Entregar EPP</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Renovaciones vencidas o por vencer (30 días)</h3>
+          <div class="tbl-wrap short"><table class="tbl" id="eRenov">
+            <thead><tr><th>Trabajador</th><th>EPP</th><th>Entregado</th><th>Renovar</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Entregas de EPP <span class="muted" id="eCount"></span></h3>
+        <div class="tbl-wrap"><table class="tbl" id="eTabla">
+          <thead><tr><th>Fecha</th><th>Vale</th><th>N° formato</th><th>EPP</th><th class="num">Cant.</th><th>Renovación</th><th>Firma</th><th>Origen</th></tr></thead>
+          <tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ============ PERSONAL ============ -->
+    <section class="view" id="view-personal">
+      <div class="card">
+        <div class="filters">
+          <input id="pBuscar" placeholder="Buscar por DNI, nombre, cargo…">
+          <label class="check"><input type="checkbox" id="pCesados"> Ver cesados</label>
+          <span class="grow"></span>
+          <button class="primary small" id="pNuevo">＋ Nuevo trabajador</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="pTabla">
+          <thead><tr><th>DNI</th><th>Apellidos y nombres</th><th>Cargo</th><th>Área</th><th>Sede</th><th>Tallas (ov/pan/cam/polo/chal/zap/bot)</th><th>Estado</th><th></th></tr></thead>
+          <tbody></tbody></table></div>
+        <div class="muted small" id="pPie"></div>
+      </div>
+    </section>
+
+    <!-- ============ PRODUCTOS ============ -->
+    <section class="view" id="view-productos">
+      <div class="card">
+        <div class="filters">
+          <input id="qBuscar" placeholder="Buscar producto…">
+          <select id="qCat"></select>
+          <label class="check"><input type="checkbox" id="qDup"> Solo posibles duplicados</label>
+          <span class="grow"></span>
+          <button class="primary small" id="qNuevo">＋ Nuevo producto</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="qTabla">
+          <thead><tr><th>Código</th><th>Descripción</th><th>Categoría</th><th>Subcategoría</th><th>UM</th><th class="num">Mínimo</th>
+            <th class="num">Costo ref.</th><th>N° kardex</th><th>Vida (meses)</th><th>Obs.</th><th></th></tr></thead>
+          <tbody></tbody></table></div>
+        <div class="muted small" id="qPie"></div>
+      </div>
+    </section>
+
+    <!-- ============ LABORES ============ -->
+    <section class="view" id="view-labores">
+      <div class="card narrow">
+        <div class="filters"><span class="grow"></span><button class="primary small" id="lNuevo">＋ Nueva labor</button></div>
+        <table class="tbl" id="lTabla"><thead><tr><th>Labor</th><th>Chimenea / frente</th><th>Zona</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <!-- ============ CELULAR DE FIRMA ============ -->
+    <section class="view" id="view-celular">
+      <div class="card narrow">
+        <h3>Vincular el celular donde firman los trabajadores</h3>
+        <ol class="steps">
+          <li>En el celular (o tablet) del almacén, abre la cámara y escanea este código.</li>
+          <li>Se abre la página <b>Firma EPP</b>: déjala abierta (se puede instalar como app).</li>
+          <li>Al entregar EPP aquí, pulsa <b>Firmar en el celular</b>: en el celular aparecen el trabajador y los EPP para que firme con el dedo.</li>
+        </ol>
+        <div id="qrBox" class="qr-box"></div>
+        <div class="hint" id="qrInfo"></div>
+        <div class="row-gap">
+          <button class="primary" id="celCrear">Generar código de vínculo</button>
+          <button class="ghost" id="celCopiar">Copiar enlace</button>
+        </div>
+        <p class="muted small">Si cambias de celular, genera un código nuevo. El enlace solo sirve para firmar: no muestra el stock ni otros datos.</p>
+      </div>
+    </section>
+
+    <!-- ============ AJUSTES ============ -->
+    <section class="view" id="view-ajustes">
+      <div class="card narrow">
+        <h3>Conexión con la hoja de Google</h3>
+        <div class="field"><label>URL del Apps Script (/exec)</label><input id="cfgUrl"></div>
+        <div class="row-gap"><button class="ghost" id="cfgProbar">Probar</button><button class="primary" id="cfgGuardar">Guardar</button></div>
+        <div class="hint" id="cfgRes"></div>
+      </div>
+      <div class="card narrow">
+        <h3>Vales pendientes de envío</h3>
+        <div id="colaLista" class="muted">Ninguno.</div>
+        <div class="row-gap"><button class="ghost" id="colaReintentar">Reintentar ahora</button></div>
+      </div>
+      <div class="card narrow">
+        <h3>Cómo funciona</h3>
+        <div class="muted small">
+          Cada producto movido es una fila en la pestaña <b>MOVIMIENTOS</b> de la hoja; nada se borra. Un error se corrige con <b>Anular</b> en Movimientos, que deja el registro y devuelve el stock.<br>
+          El costo es opcional en los ingresos. Las salidas toman el <b>costo promedio</b> del producto en ese momento (o el costo referencial de la pestaña BASE), así Power BI calcula el consumo valorizado por semana, mes, labor y trabajador.<br>
+          El kardex FO-SI-057 se arma con las entregas de EPP y sus firmas, y se guarda en PDF en la carpeta <b>Kardex EPP</b> de tu Drive.
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ MODALES ============ -->
+<div class="modal" id="modal"><div class="modal-box" id="modalBox"></div></div>
+
+<div class="modal" id="firmaModal">
+  <div class="modal-box firma-modal">
+    <h3>Firma del trabajador</h3>
+    <div class="muted" id="fmTexto"></div>
+    <div class="canvas-wrap"><canvas id="fmCanvas"></canvas><div class="canvas-line"></div><div class="canvas-ph" id="fmPh">Firme aquí</div></div>
+    <div class="row-between">
+      <button class="ghost" id="fmLimpiar">Limpiar</button>
+      <div class="row-gap"><button class="ghost" id="fmCancelar">Cancelar</button><button class="primary" id="fmOk">Usar esta firma</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="kardex-overlay hidden" id="kxOverlay">
+  <div class="kx-bar">
+    <b id="kxTitulo">Kardex</b>
+    <span class="grow"></span>
+    <span class="muted small" id="kxEstado"></span>
+    <button class="ghost" id="kxImprimir">🖨 Imprimir</button>
+    <button class="primary" id="kxDrive">💾 Guardar PDF en Drive</button>
+    <button class="ghost" id="kxCerrar">✕ Cerrar</button>
+  </div>
+  <div class="kx-scroll"><div id="kxDoc"></div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="./api.js"></script>
+<script src="./kardex.js"></script>
+<script src="./app.js"></script>
+<script src="./pedidos.js"></script>
+</body>
+</html>
